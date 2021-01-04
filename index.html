@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=1, initial-scale=1.0" />
+        <title>Laboratório de Controle de potência</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.2.0/p5.min.js"></script>
+        <script src="https://microsoft.github.io/monaco-editor/lib/jquery-1.9.1.min.js"></script>
+        <script src="https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/loader.js"></script>
+        <script src="https://microsoft.github.io/monaco-editor/lib/bootstrap.min.js"></script>
+        <link rel="stylesheet" href="https://microsoft.github.io/monaco-editor/all.css" />
+        <link rel="stylesheet" href="https://microsoft.github.io/monaco-editor/index/index.css" />
+        <link
+            rel="stylesheet"
+            href="https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/editor/editor.main.css"
+        />
+    </head>
+    <body style="padding: 0px">
+        <script src="game.js"></script>
+        <section class="try">
+            <div class="container">
+                <div class="row" style="display: flex">
+                    <span style="font-weight: bold">Código para movimentação</span>
+                    <input style="margin-left: auto" type="button" value="Executar" id="btnExecutar" />
+                    <input type="button" value="Parar" id="btnParar" />
+                </div>
+                <div class="editor row">
+                    <div class="editor-frame">
+                        <div class="loading editor" style="display: none">
+                            <div class="progress progress-striped active">
+                                <div class="bar"></div>
+                            </div>
+                        </div>
+                        <div id="editor"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <script src="editor.js"></script>
+    </body>
+</html>
