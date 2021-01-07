@@ -14,13 +14,13 @@ var editor = null,
      * Tecla "+" => Aumenta o tamanho da bolinha
      * Tecla "-" => Diminui o tamanho da bolinha
      * 
-     * Distancia é um inteiro que contem o quanto longe você está do seu objetivo.
+     * Distancia é um inteiro (número) que contem o quanto longe você está do seu objetivo.
      * 
      */
     function movimento(erro, contexto) {
-        var kP = 0.2;
-        var kI = 0.20;
-        var kD = 0.00;
+        var kP = 0.8;
+        var kI = 0.40;
+        var kD = 0.10;
         var deltaTempo = 0;
 
         if (!contexto.i) contexto.i = 0;
@@ -36,14 +36,18 @@ var editor = null,
         var i = contexto.i * kI;
     
         // controle: d
-        var d = 0;
+        var d = ((erro - contexto.ultimoErro) / deltaTempo) * kD;
         contexto.ultimoErro = erro;
     
         // valor total do PID
         var pidTotal = p + i + d;
-        // console.log({
-        //     p, i, d, pidTotal, erro, contexto
-        // })
+
+        //
+        // Habilita gráficos adicionais sobre cada termo (a ser monitorado)
+        //
+        // simulador.grafico.adicionarGrafico({ nome: 'p', cor: [235, 52, 235], valor: p });
+        // simulador.grafico.adicionarGrafico({ nome: 'i', cor: [211, 235, 52], valor: i });
+        // simulador.grafico.adicionarGrafico({ nome: 'd', cor: [235, 107, 52], valor: d });        
     
         // retorno a velocidade do movimento (e seu sentido, positivo ou negativo)
         return pidTotal;
@@ -67,9 +71,11 @@ $(document).ready(function () {
 
     $("#btnExecutar").click(function () {
         try {
-            const funcUsuario = eval("(" + editor.getValue() + ")");
-            simulador.core.pidCodigo = funcUsuario;
-            simulador.core.iniciarJogo();
+            if (!simulador.core.iniciado) {
+                const funcUsuario = eval("(" + editor.getValue() + ")");
+                simulador.core.pidCodigo = funcUsuario;
+                simulador.core.iniciarJogo();
+            }
         } catch (err) {
             alert("Seu código possui erros. Veja no console");
             console.error(err);

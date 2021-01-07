@@ -216,7 +216,7 @@ var simulador = {
          * 9.807 = Gravidade da Terra
          * 10.000 = Atenuador (em função do tamanho do simulador)
          */
-        gravidade: 9.807 / 1000, // gravidade da terra
+        gravidade: 9.807 / 100, // gravidade da terra
         /**
          * Velocidade de avanço a uma determinada direção
          * Se negativo -> avança para esquerda
@@ -287,7 +287,7 @@ var simulador = {
                 const pidResposta = simulador.core.pidCodigo(posicao, simulador.contexto);
                 simulador.core.pidResposta = pidResposta;
             }, simulador.core.pidFrequencia);
-            simulador.core.iniciado = true;
+            this.iniciado = true;
         },
         /**
          * Verifica se atingiu alguma condição de fim de jogo
@@ -331,6 +331,11 @@ var simulador = {
         loop: function () {
             if (simulador.core.fimDeJogo && simulador.core.iniciado) {
                 if (confirm("Iniciar novo jogo?")) simulador.core.novoJogo();
+                else {
+                    this.aceleracao = 0;
+                    this.pidResposta = 0;
+                    this.movimentacaoLastDelay = 0;
+                }
                 simulador.core.fimDeJogo = false;
                 simulador.core.iniciado = true;
             }
@@ -365,17 +370,77 @@ var simulador = {
          */
         reticulas: 200,
         /**
-         * Acumula resultados
+         * Acumuladores de resultados de sistema. Cada item é um array de [erro, aceleracao, pidtotal].
          */
         acumulador: [],
+        /**
+         * Acumuladores de usuário
+         */
+        acumuladoresUsuario: {},
         /**
          * Resultados
          */
         adicionar: function (resultado) {
             this.acumulador = [...this.acumulador.splice((simulador.board.largura - 1) * -1), resultado];
         },
+        adicionarGrafico: function ({ nome, cor, valor }) {
+            if (!this.acumuladoresUsuario[nome]) {
+                this.acumuladoresUsuario[nome] = {
+                    cor,
+                    valores: [valor],
+                    desenharGrafico: null,
+                };
+                this.acumuladoresUsuario[nome].desenharGrafico = simulador.grafico.desenharGraficoRelativo(
+                    cor,
+                    undefined,
+                    () => this.acumuladoresUsuario[nome].valores
+                );
+                console.log("Adicionando termo:", nome, "ao gráfico. Cor:", cor, " - Valor:", valor);
+            } else
+                this.acumuladoresUsuario[nome].valores = [
+                    ...this.acumuladoresUsuario[nome].valores.splice((simulador.board.largura - 1) * -1),
+                    valor,
+                ];
+        },
         altura: function () {
             return this.alturaProporcional * simulador.board.comprimento;
+        },
+        desenharGraficoRelativo: function (cor, funcaoSugerida, acumuladorSugerido) {
+            const funcaoUsada = funcaoSugerida ? funcaoSugerida : (cur) => cur;
+            const inicioGrafico = simulador.board.inicioGrafico();
+            const finalGrafico = simulador.board.finalGrafico();
+            const tamanhoGrafico = finalGrafico - inicioGrafico;
+            const meioGrafico = tamanhoGrafico / 2 + inicioGrafico;
+            return function () {
+                const acumuladorUsado = acumuladorSugerido ? acumuladorSugerido() : simulador.grafico.acumulador;
+                stroke(...cor);
+                let oldpos = {
+                    x: 0,
+                    y: meioGrafico,
+                };
+                // encontra o maximo e minimo
+                const [min, max] = acumuladorUsado.reduce(
+                    (acc, cur) => {
+                        let [i, a] = acc;
+                        const v = funcaoUsada(cur);
+                        return [Math.min(i, v), Math.max(a, v)];
+                    },
+                    [Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]
+                );
+                const deltaV = max - min;
+                acumuladorUsado.forEach((cur, i) => {
+                    const v = funcaoUsada(cur);
+                    const part1 = (max - v - deltaV) / (deltaV * -1);
+                    const part2 = tamanhoGrafico * part1;
+                    const local = finalGrafico - part2;
+                    line(oldpos.x, oldpos.y, i, local);
+                    //console.log(min, max, v, part1, part2, local, i);
+                    oldpos.x = i;
+                    oldpos.y = local;
+                });
+                strokeWeight(1);
+                stroke(0);
+            };
         },
         desenhar: function () {
             const desenharReticulas = function () {
@@ -417,47 +482,11 @@ var simulador = {
                 strokeWeight(1);
                 stroke(0);
             };
-
-            const desenharGraficoRelativo = function (cor, funcParam) {
-                return function () {
-                    stroke(...cor);
-                    const inicioGrafico = simulador.board.inicioGrafico();
-                    const finalGrafico = simulador.board.finalGrafico();
-                    const tamanhoGrafico = finalGrafico - inicioGrafico;
-                    const meioGrafico = tamanhoGrafico / 2 + inicioGrafico;
-                    let oldpos = {
-                        x: 0,
-                        y: meioGrafico,
-                    };
-                    // encontra o maximo e minimo
-                    const [min, max] = simulador.grafico.acumulador.reduce(
-                        (acc, cur) => {
-                            let [i, a] = acc;
-                            const v = funcParam(cur);
-                            return [Math.min(i, v), Math.max(a, v)];
-                        },
-                        [Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]
-                    );
-                    const deltaV = max - min;
-                    simulador.grafico.acumulador.forEach((cur, i) => {
-                        const v = funcParam(cur);
-                        const part1 = (max - v - deltaV) / (deltaV * -1);
-                        const part2 = tamanhoGrafico * part1;
-                        const local = finalGrafico - part2;
-                        line(oldpos.x, oldpos.y, i, local);
-                        //console.log(min, max, v, part1, part2, local, i);
-                        oldpos.x = i;
-                        oldpos.y = local;
-                    });
-                    strokeWeight(1);
-                    stroke(0);
-                };
-            };
-            const desenharGraficoAceleracao = desenharGraficoRelativo([0, 0, 255], function (cur) {
+            const desenharGraficoAceleracao = this.desenharGraficoRelativo([0, 0, 255], function (cur) {
                 return cur[1];
             });
 
-            const desenharGraficoResposta = desenharGraficoRelativo([255, 0, 0], function (cur) {
+            const desenharGraficoResposta = this.desenharGraficoRelativo([255, 0, 0], function (cur) {
                 return cur[2];
             });
 
@@ -478,11 +507,20 @@ var simulador = {
                 fill(255);
                 stroke(1);
             };
+            const desenharGraficoUsuario = function () {
+                Object.keys(simulador.grafico.acumuladoresUsuario).forEach((v) => {
+                    if (simulador.grafico.acumuladoresUsuario[v].desenharGrafico) {
+                        simulador.grafico.acumuladoresUsuario[v].desenharGrafico();
+                    }
+                });
+            };
+
             desenharReticulas();
             desenharLegendas();
             desenharGraficoDistancia();
             desenharGraficoAceleracao();
             desenharGraficoResposta();
+            desenharGraficoUsuario();
         },
     },
 };
