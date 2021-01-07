@@ -60,8 +60,22 @@ var simulador = {
             const desenharQuadro = function () {
                 rect(0, 0, simulador.board.largura, simulador.board.comprimento);
             };
+            const desenharCronometro = function () {
+                if (simulador.core.iniciado) {
+                    fill(0);
+                    noStroke();
+                    const valor = (Date.now() - simulador.core.tempoInicio) / 1000;
+                    const valorTxt = `${valor} secs`;
+                    textSize(12);
+                    textStyle(BOLD);
+                    text(valorTxt, simulador.board.largura - 10 - textWidth(valorTxt), 15);
+                    stroke(0);
+                    fill(255);
+                }
+            };
             desenharQuadro();
             desenharDivisoria();
+            desenharCronometro();
         },
     },
     /**
@@ -235,7 +249,7 @@ var simulador = {
         /**
          * A cada quantos milisegundos deve ser executado a movimentação (dinâmica do jogo)
          */
-        movimentacaoDelay: 10,
+        movimentacaoDelay: 50,
         /**
          * Quando foi executado a última movimentação.
          */
@@ -267,6 +281,7 @@ var simulador = {
          * Inicia o jogo do ponto paralizado
          */
         iniciarJogo: function () {
+            simulador.core.tempoInicio = Date.now();
             this.pidControle = setInterval(function () {
                 const posicao = simulador.bolinha.posicao * -1;
                 const pidResposta = simulador.core.pidCodigo(posicao, simulador.contexto);
@@ -297,19 +312,20 @@ var simulador = {
             //     aceleracao: this.aceleracao,
             //     posicaoBolinha: simulador.bolinha.posicao,
             // });
-            this.aceleracao += this.pidResposta;
-            this.aceleracao += simulador.barra.angulo;
-            simulador.bolinha.posicao += this.aceleracao;
 
             // calcula posição da barra
             const metadeBarra = simulador.barra.tamanho() / 2;
             let sentidoAngulo = 0; // quando esta na metade exata da barra
             if (simulador.bolinha.posicao > metadeBarra) sentidoAngulo = -1;
             else if (simulador.bolinha.posicao < metadeBarra) sentidoAngulo = 1;
+
             simulador.barra.angulo +=
                 (simulador.bolinha.tamanho * simulador.core.gravidade * sentidoAngulo * simulador.bolinha.posicao) /
                 simulador.barra.tamanho();
 
+            this.aceleracao += this.pidResposta * 0.2;
+            this.aceleracao += simulador.barra.angulo;
+            simulador.bolinha.posicao += this.aceleracao + this.pidResposta;
             simulador.grafico.adicionar([simulador.bolinha.posicao, this.aceleracao, this.pidResposta]);
         },
         loop: function () {
@@ -370,7 +386,8 @@ var simulador = {
                     const posicaoReticula = x * larguraReticula;
                     line(posicaoReticula, simulador.board.inicioGrafico(), posicaoReticula, simulador.board.finalGrafico());
                 }
-                stroke(255, 0, 0);
+                stroke(0);
+                strokeWeight(2);
                 const meioGrafico =
                     (simulador.board.finalGrafico() - simulador.board.inicioGrafico()) / 2 + simulador.board.inicioGrafico();
                 line(0, meioGrafico, simulador.board.largura, meioGrafico);
@@ -393,20 +410,17 @@ var simulador = {
                 simulador.grafico.acumulador.forEach(([v], i) => {
                     const posicaoRelativa = v / barraTamanho;
                     const local = posicaoRelativa * tamanhoGrafico + meioGrafico;
-                    //circle(i, local, 3);
                     line(oldpos.x, oldpos.y, i, local);
                     oldpos.x = i;
                     oldpos.y = local;
                 });
                 strokeWeight(1);
                 stroke(0);
-                //fill(255);
             };
 
             const desenharGraficoRelativo = function (cor, funcParam) {
                 return function () {
                     stroke(...cor);
-                    const barraTamanho = simulador.barra.tamanho();
                     const inicioGrafico = simulador.board.inicioGrafico();
                     const finalGrafico = simulador.board.finalGrafico();
                     const tamanhoGrafico = finalGrafico - inicioGrafico;
@@ -415,24 +429,23 @@ var simulador = {
                         x: 0,
                         y: meioGrafico,
                     };
-                    // aceleracao maxima
+                    // encontra o maximo e minimo
                     const [min, max] = simulador.grafico.acumulador.reduce(
-                        ([i, a], cur) => {
+                        (acc, cur) => {
+                            let [i, a] = acc;
                             const v = funcParam(cur);
-                            if (v > a) a = v;
-                            if (v < i) i = v;
-                            return [i, a];
+                            return [Math.min(i, v), Math.max(a, v)];
                         },
-                        [0, 0]
+                        [Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]
                     );
                     const deltaV = max - min;
-                    //console.log(cor, min, max);
-                    // aceleracao minima
                     simulador.grafico.acumulador.forEach((cur, i) => {
                         const v = funcParam(cur);
-                        const posicaoRelativa = v / deltaV;
-                        const local = posicaoRelativa * tamanhoGrafico + meioGrafico;
+                        const part1 = (max - v - deltaV) / (deltaV * -1);
+                        const part2 = tamanhoGrafico * part1;
+                        const local = finalGrafico - part2;
                         line(oldpos.x, oldpos.y, i, local);
+                        //console.log(min, max, v, part1, part2, local, i);
                         oldpos.x = i;
                         oldpos.y = local;
                     });
@@ -440,39 +453,6 @@ var simulador = {
                     stroke(0);
                 };
             };
-
-            // const desenharGraficoAceleracao = function () {
-            //     stroke(0, 0, 255);
-            //     const barraTamanho = simulador.barra.tamanho();
-            //     const inicioGrafico = simulador.board.inicioGrafico();
-            //     const finalGrafico = simulador.board.finalGrafico();
-            //     const tamanhoGrafico = finalGrafico - inicioGrafico;
-            //     const meioGrafico = tamanhoGrafico / 2 + inicioGrafico;
-            //     let oldpos = {
-            //         x: 0,
-            //         y: meioGrafico,
-            //     };
-            //     // aceleracao maxima
-            //     const [min, max] = simulador.grafico.acumulador.reduce(
-            //         ([i, a], [, aceleracao]) => {
-            //             if (aceleracao > a) a = aceleracao;
-            //             if (aceleracao < i) i = aceleracao;
-            //             return [i, a];
-            //         },
-            //         [0, 0]
-            //     );
-            //     const deltaAceleracao = max - min;
-            //     // aceleracao minima
-            //     simulador.grafico.acumulador.forEach(([, v], i) => {
-            //         const posicaoRelativa = v / deltaAceleracao;
-            //         const local = posicaoRelativa * tamanhoGrafico + meioGrafico;
-            //         line(oldpos.x, oldpos.y, i, local);
-            //         oldpos.x = i;
-            //         oldpos.y = local;
-            //     });
-            //     strokeWeight(1);
-            //     stroke(0);
-            // };
             const desenharGraficoAceleracao = desenharGraficoRelativo([0, 0, 255], function (cur) {
                 return cur[1];
             });
@@ -482,18 +462,19 @@ var simulador = {
             });
 
             const desenharLegendas = function () {
-                const finalGrafico = simulador.board.finalGrafico();
+                const refY = simulador.board.finalSimulacao();
                 textSize(12);
                 textStyle(BOLD);
                 fill(255);
-                rect(simulador.board.largura - 160, finalGrafico - 52, simulador.board.largura, finalGrafico);
+                strokeWeight(1);
+                rect(simulador.board.largura - 160, refY - 52, 159, 52);
                 noStroke();
                 fill(255, 0, 0);
-                text("Resposta PID", simulador.board.largura - 80, finalGrafico - 34);
+                text("Resposta PID", simulador.board.largura - 83, refY - 34);
                 fill(0, 0, 255);
-                text("Aceleração da bolinha", simulador.board.largura - 130, finalGrafico - 20);
+                text("Aceleração da bolinha", simulador.board.largura - 133, refY - 20);
                 fill(0, 255, 0);
-                text("Erro (Distância do centro)", simulador.board.largura - 150, finalGrafico - 6);
+                text("Erro (Distância do centro)", simulador.board.largura - 153, refY - 6);
                 fill(255);
                 stroke(1);
             };
@@ -518,21 +499,30 @@ function draw() {
     simulador.core.loop();
 }
 
+var handleKeys = null;
+
+function keyPressed() {
+    handleKeys = setInterval(() => {
+        //console.log(keyCode);
+        if (keyCode === 40) {
+            // Seta para baixo
+            simulador.barra.angulo -= 0.5;
+        } else if (keyCode === 38) {
+            simulador.barra.angulo += 0.5;
+        } else if (keyCode === 37) {
+            simulador.bolinha.posicao += 5;
+        } else if (keyCode === 39) {
+            simulador.bolinha.posicao -= 5;
+        } else if (keyCode === 61) {
+            simulador.bolinha.tamanho += 2;
+        } else if (keyCode === 173) {
+            simulador.bolinha.tamanho -= 2;
+        }
+        return false;
+    }, 100);
+}
+
 function keyReleased() {
-    //console.log(keyCode);
-    if (keyCode === 40) {
-        // Seta para baixo
-        simulador.barra.angulo -= 0.5;
-    } else if (keyCode === 38) {
-        simulador.barra.angulo += 0.5;
-    } else if (keyCode === 37) {
-        simulador.bolinha.posicao += 10;
-    } else if (keyCode === 39) {
-        simulador.bolinha.posicao -= 10;
-    } else if (keyCode === 61) {
-        simulador.bolinha.tamanho += 2;
-    } else if (keyCode === 173) {
-        simulador.bolinha.tamanho -= 2;
-    }
-    return false;
+    if (handleKeys) clearInterval(handleKeys);
+    handleKeys = null;
 }

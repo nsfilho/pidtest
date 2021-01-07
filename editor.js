@@ -18,8 +18,8 @@ var editor = null,
      * 
      */
     function movimento(erro, contexto) {
-        var kP = 0.02;
-        var kI = 0.00;
+        var kP = 0.2;
+        var kI = 0.20;
         var kD = 0.00;
         var deltaTempo = 0;
 
